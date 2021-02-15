@@ -1,9 +1,9 @@
 // -*- C++ -*-
 //
-// Package:    TopLJets2015/LHEAnalyzer
+// Package:    AnaTools/LHEAnalyzer
 // Class:      LHEAnalyzer
 //
-/**\class LHEAnalyzer LHEAnalyzer.cc TopLJets2015/LHEAnalyzer/plugins/LHEAnalyzer.cc
+/**\class LHEAnalyzer LHEAnalyzer.cc AnaTools/LHEAnalyzer/plugins/LHEAnalyzer.cc
 
  Description: [one line class summary]
 
