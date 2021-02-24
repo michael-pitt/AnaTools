@@ -61,18 +61,18 @@ class LHEAnalyzer : public EDAnalyzer {
       virtual void beginJob() override;
       virtual void analyze(const Event&, const EventSetup&) override;
       virtual void endJob() override;
-	  bool IsHardProcess(int s){return (s > 20 && s<30);}
+      bool IsHardProcess(int s){return (s > 20 && s<30);}
 
       int nPar;
       int PID[MAXPAR], STATUS[MAXPAR];
       float E[MAXPAR],PX[MAXPAR], PY[MAXPAR], PZ[MAXPAR], PT[MAXPAR], ETA[MAXPAR], PHI[MAXPAR];
-      float weight;
+      float weights[5]; // nominal + 4 scale weights
 	  
       // ----------member data ---------------------------
-	  EDGetTokenT<LHEEventProduct> generatorlheToken_;
+      EDGetTokenT<LHEEventProduct> generatorlheToken_;
       EDGetTokenT<GenParticleCollection> prunedGenParticlesToken_;
 	  
-	  TTree *tree_;
+      TTree *tree_;
 };
 
 //
@@ -107,7 +107,7 @@ LHEAnalyzer::LHEAnalyzer(const ParameterSet& iConfig)
    tree_->Branch("ETA",ETA,"ETA[nPar]/F");
    tree_->Branch("PHI",PHI,"PHI[nPar]/F");
    tree_->Branch("STATUS",STATUS,"STATUS[nPar]/F");
-   tree_->Branch("weight",&weight);
+   tree_->Branch("weights",weights,"weights[5]/F");
 
 }
 
@@ -132,8 +132,22 @@ LHEAnalyzer::analyze(const Event& iEvent, const EventSetup& iSetup)
    
    Handle<LHEEventProduct> evet;
    iEvent.getByToken(generatorlheToken_, evet);
-   weight = evet.isValid() ? evet->originalXWGTUP() : 0;
-     
+   if(!evet.isValid()){
+	   cout << "ERROR: wrong LHEEventProduct provided"<<endl;
+	   return;
+   }
+   //weight =  evet->originalXWGTUP();
+   for (unsigned int i=0; i<evet->weights().size(); i++) {
+	   int id=atoi(evet->weights()[i].id.c_str());
+	   // nominal weight
+	   if (id == 1001) weights[0]=evet->weights()[i].wgt;
+	   // Scale uncertainties
+	   if (id == 1002) weights[1]=evet->weights()[i].wgt; // muF*2.0
+	   if (id == 1003) weights[2]=evet->weights()[i].wgt; // muF*0.5
+	   if (id == 1004) weights[3]=evet->weights()[i].wgt; // muR*2.0
+	   if (id == 1005) weights[4]=evet->weights()[i].wgt; // muR*0.5
+   }
+	   
    Handle<GenParticleCollection> prunedGenParticles;
    iEvent.getByToken(prunedGenParticlesToken_,prunedGenParticles);
    if(!prunedGenParticles.isValid()){
