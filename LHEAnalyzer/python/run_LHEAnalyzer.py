@@ -19,13 +19,18 @@ process = cms.Process("LHE")
 # import of standard configurations
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
 process.load('Configuration.StandardSequences.Services_cff')
-process.MessageLogger.cerr.FwkReport.reportEvery = cms.untracked.int32(250)
+process.MessageLogger.cerr.FwkReport.reportEvery = cms.untracked.int32(100)
+
+#Access the Particle Data Table
+process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
 
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(options.maxEvents) )
 
 if options.isGEN or options.isAOD:
   if not options.inputFiles: print('ERROR: no input file provided!')
   else: process.source = cms.Source("PoolSource",fileNames = cms.untracked.vstring(options.inputFiles))
+  process.load('PhysicsTools.PatAlgos.slimming.prunedGenParticles_cfi') 
+  process.prun_step = cms.Path(process.prunedGenParticles)
 else:
   process.source = cms.Source("EmptySource")
   process.MessageLogger.cerr.FwkReport.reportEvery = cms.untracked.int32(500)
@@ -100,7 +105,6 @@ else:
   randSvc.populate()
   print 'Seed is',process.RandomNumberGeneratorService.externalLHEProducer.initialSeed
   
-  process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
   process.load('PhysicsTools.HepMCCandAlgos.genParticles_cfi')
   process.genParticles.src= cms.InputTag("generator","unsmeared")
   process.load('PhysicsTools.PatAlgos.slimming.prunedGenParticles_cfi') 
@@ -110,6 +114,7 @@ else:
 process.TFileService = cms.Service("TFileService",fileName = cms.string(options.outputFile))
 
 process.analysis = cms.EDAnalyzer('LHEAnalyzer')
+
 process.analysis_step = cms.Path(process.analysis)
 
 #process.analysis = cms.OutputModule("PoolOutputModule",
@@ -118,7 +123,7 @@ process.analysis_step = cms.Path(process.analysis)
 #process.analysis_step = cms.EndPath(process.analysis)
 
 if options.isGEN or options.isAOD:
-  process.schedule = cms.Schedule(process.analysis_step)
+  process.schedule = cms.Schedule(process.prun_step,process.analysis_step)
 else:
   process.schedule = cms.Schedule(process.generator_step,process.prun_step,process.analysis_step)
 

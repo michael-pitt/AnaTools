@@ -32,6 +32,7 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "SimDataFormats/GeneratorProducts/interface/LHEEventProduct.h"
+#include "SimDataFormats/GeneratorProducts/interface/LHERunInfoProduct.h"
 #include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
@@ -55,7 +56,7 @@ class LHEAnalyzer : public EDAnalyzer {
       ~LHEAnalyzer();
 
       static void fillDescriptions(ConfigurationDescriptions& descriptions);
-
+      virtual void endRun(const edm::Run&,const edm::EventSetup&);
 
    private:
       virtual void beginJob() override;
@@ -66,10 +67,11 @@ class LHEAnalyzer : public EDAnalyzer {
       int nPar;
       int PID[MAXPAR], STATUS[MAXPAR];
       float E[MAXPAR],PX[MAXPAR], PY[MAXPAR], PZ[MAXPAR], PT[MAXPAR], ETA[MAXPAR], PHI[MAXPAR];
-      float weights[5]; // nominal + 4 scale weights
+      float weights[9]; // nominal + 4 scale weights + 4 width weights
 	  
       // ----------member data ---------------------------
       EDGetTokenT<LHEEventProduct> generatorlheToken_;
+      EDGetTokenT<LHERunInfoProduct> generatorRunInfoToken_;
       EDGetTokenT<GenParticleCollection> prunedGenParticlesToken_;
 	  
       TTree *tree_;
@@ -89,6 +91,7 @@ class LHEAnalyzer : public EDAnalyzer {
 LHEAnalyzer::LHEAnalyzer(const ParameterSet& iConfig)
  :
     generatorlheToken_(consumes<LHEEventProduct>(InputTag("externalLHEProducer",""))),
+    generatorRunInfoToken_(consumes<LHERunInfoProduct,InRun>({"externalLHEProducer"})),
 	prunedGenParticlesToken_(consumes<GenParticleCollection>(InputTag("prunedGenParticles")))
 
 {
@@ -106,8 +109,8 @@ LHEAnalyzer::LHEAnalyzer(const ParameterSet& iConfig)
    tree_->Branch("PT",PT,"PT[nPar]/F");
    tree_->Branch("ETA",ETA,"ETA[nPar]/F");
    tree_->Branch("PHI",PHI,"PHI[nPar]/F");
-   tree_->Branch("STATUS",STATUS,"STATUS[nPar]/F");
-   tree_->Branch("weights",weights,"weights[5]/F");
+   tree_->Branch("STATUS",STATUS,"STATUS[nPar]/I");
+   tree_->Branch("weights",weights,"weights[9]/F");
 
 }
 
@@ -138,14 +141,19 @@ LHEAnalyzer::analyze(const Event& iEvent, const EventSetup& iSetup)
    }
    //weight =  evet->originalXWGTUP();
    for (unsigned int i=0; i<evet->weights().size(); i++) {
-	   int id=atoi(evet->weights()[i].id.c_str());
+	   string id =evet->weights()[i].id.c_str();
 	   // nominal weight
-	   if (id == 1001) weights[0]=evet->weights()[i].wgt;
+	   if (id == "1001") weights[0]=evet->weights()[i].wgt;
 	   // Scale uncertainties
-	   if (id == 1002) weights[1]=evet->weights()[i].wgt; // muF*2.0
-	   if (id == 1003) weights[2]=evet->weights()[i].wgt; // muF*0.5
-	   if (id == 1004) weights[3]=evet->weights()[i].wgt; // muR*2.0
-	   if (id == 1005) weights[4]=evet->weights()[i].wgt; // muR*0.5
+	   if (id == "1016") weights[1]=evet->weights()[i].wgt; // muF*2.0
+	   if (id == "1031") weights[2]=evet->weights()[i].wgt; // muF*0.5
+	   if (id == "1006") weights[3]=evet->weights()[i].wgt; // muR*2.0
+	   if (id == "1011") weights[4]=evet->weights()[i].wgt; // muR*0.5
+	   // top width
+	   if (id == "rwgt_19") weights[5]=evet->weights()[i].wgt; // SM param
+	   if (id == "rwgt_16") weights[6]=evet->weights()[i].wgt; // width=2.5GeV
+	   if (id == "rwgt_21") weights[7]=evet->weights()[i].wgt; // width=0.5GeV
+	   if (id == "rwgt_18") weights[8]=evet->weights()[i].wgt; // width=1.5GeV
    }
 	   
    Handle<GenParticleCollection> prunedGenParticles;
@@ -190,10 +198,48 @@ LHEAnalyzer::beginJob()
 {
 }
 
+void
+LHEAnalyzer::endRun(const edm::Run& iRun,
+		     const EventSetup& iSetup)
+{
+  try{
+
+    cout << "[LHEAnalyzer::endRun]" << endl;
+	
+	// Following lines list the generator weights as described in 
+	//https://twiki.cern.ch/twiki/bin/viewauth/CMS/LHEReaderCMSSW#Retrieving_the_weights
+/*
+    edm::Handle<LHERunInfoProduct> lheruninfo;
+    typedef std::vector<LHERunInfoProduct::Header>::const_iterator headers_const_iterator;
+    iRun.getByToken(generatorRunInfoToken_, lheruninfo );
+
+    LHERunInfoProduct myLHERunInfoProduct = *(lheruninfo.product());
+	
+	// Print all weights and corresponding integers
+	for (headers_const_iterator iter=myLHERunInfoProduct.headers_begin(); iter!=myLHERunInfoProduct.headers_end(); iter++){
+      std::cout << "tag="<<iter->tag() << std::endl;
+      std::vector<std::string> lines = iter->lines();
+      for (unsigned int iLine = 0; iLine<lines.size(); iLine++) {
+		if(lines.at(iLine)=="") continue;
+		//if(lines.at(iLine).find("weightgroup")==std::string::npos) continue;
+        std::cout << lines.at(iLine) << std::endl;
+      }
+    }
+*/
+  }
+  catch(std::exception &e){
+    std::cout << e.what() << endl
+	      << "Failed to retrieve LHERunInfoProduct" << std::endl;
+  }
+  
+
+}
+
 // ------------ method called once each job just after ending the event loop  ------------
 void
 LHEAnalyzer::endJob()
 {
+	
 }
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
